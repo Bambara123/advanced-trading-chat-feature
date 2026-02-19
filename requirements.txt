@@ -1,0 +1,5 @@
+streamlit
+finnhub-python
+pandas
+plotly
+

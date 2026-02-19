@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 # ---------------------------------------------------------------------------
 # Finnhub client
 # ---------------------------------------------------------------------------
-FINNHUB_API_KEY = "c0p81vn48v6rvej4f590"
+FINNHUB_API_KEY = st.secrets["FINNHUB_API_KEY"]
 
 @st.cache_resource
 def get_client():

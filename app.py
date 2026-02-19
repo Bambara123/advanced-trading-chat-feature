@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 # ---------------------------------------------------------------------------
 # Finnhub client
 # ---------------------------------------------------------------------------
-FINNHUB_API_KEY = st.secrets["FINNHUB_API_KEY"]
+FINNHUB_API_KEY = "c0p81vn48v6rvej4f590"
 
 @st.cache_resource
 def get_client():
@@ -25,13 +25,14 @@ st.set_page_config(page_title="Market Explorer", layout="wide", initial_sidebar_
 # ---------------------------------------------------------------------------
 # CSS: lock page, flex layout — top fixed, middle scrolls, bottom fixed
 # ---------------------------------------------------------------------------
+HEADER_HEIGHT = 100          # px – symbol title + toggle button
 TOP_HEIGHT_EXPANDED = 300   # px – charts visible
-TOP_HEIGHT_COLLAPSED = 55   # px – just the toggle button
+TOP_HEIGHT_COLLAPSED = 0    # px – no charts
 BOTTOM_BAR_HEIGHT = 70      # px – chat input
 
 show_graphs = st.session_state.get("show_graphs", True)
 top_h = TOP_HEIGHT_EXPANDED if show_graphs else TOP_HEIGHT_COLLAPSED
-mid_top = top_h + 8
+mid_top = HEADER_HEIGHT + top_h + 8
 
 st.markdown(f"""
 <style>
@@ -54,19 +55,18 @@ section.main > div.block-container {{
     top: 0;
     left: 0;
     right: 0;
-    z-index: 999;
+    z-index: 1000;
     background: var(--background-color);
-    height: {top_h}px;
-    max-height: {top_h}px;
-    overflow-x: auto;
-    overflow-y: hidden;
+    height: {HEADER_HEIGHT}px;
+    max-height: {HEADER_HEIGHT}px;
+    overflow: hidden;
     padding: 0.4rem 1rem 0.25rem 1rem;
     border-bottom: 1px solid var(--secondary-background-color);
 }}
 
 .st-key-top_panel {{
     position: fixed !important;
-    top: 55px;
+    top: {HEADER_HEIGHT}px;
     left: 0;
     right: 0;
     z-index: 999;
@@ -112,96 +112,99 @@ div[data-testid="stChatInput"] {{
 }}
 div[data-testid="stChatInput"] textarea {{
     border-radius: 24px !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
 }}
 </style>
 """, unsafe_allow_html=True)
 
-if show_graphs:
-    _arrow_mid = 55 + (TOP_HEIGHT_EXPANDED - 55) // 2
-    components.html(f"""
-    <script>
-    (function() {{
-      var doc = window.parent.document;
+_arrow_mid = HEADER_HEIGHT + TOP_HEIGHT_EXPANDED // 2
 
-      var old1 = doc.getElementById('scroll-left-btn');
-      var old2 = doc.getElementById('scroll-right-btn');
-      if (old1) old1.remove();
-      if (old2) old2.remove();
+_remove_scroll_btns_js = """
+<script>
+(function() {
+  var doc = window.parent.document;
+  var old1 = doc.getElementById('scroll-left-btn');
+  var old2 = doc.getElementById('scroll-right-btn');
+  if (old1) old1.remove();
+  if (old2) old2.remove();
+})();
+</script>
+"""
 
-      if (!doc.getElementById('tp-scroll-style')) {{
-        var style = doc.createElement('style');
-        style.id = 'tp-scroll-style';
-        style.textContent = `
-          .tp-scroll-btn {{
-            position: fixed;
-            top: {_arrow_mid}px;
-            transform: translateY(-50%);
-            width: 36px; height: 36px;
-            border-radius: 50%;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(40,40,40,0.8);
-            color: #fff;
-            font-size: 1rem;
-            cursor: pointer;
-            z-index: 10000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0.1;
-          }}
-          .tp-scroll-btn:hover {{ opacity: 0.5; background: rgba(70,70,70,0.95); }}
-        `;
-        doc.head.appendChild(style);
+_create_scroll_btns_js = f"""
+<script>
+(function() {{
+  var doc = window.parent.document;
+
+  var old1 = doc.getElementById('scroll-left-btn');
+  var old2 = doc.getElementById('scroll-right-btn');
+  if (old1) old1.remove();
+  if (old2) old2.remove();
+
+  if (!doc.getElementById('tp-scroll-style')) {{
+    var style = doc.createElement('style');
+    style.id = 'tp-scroll-style';
+    style.textContent = `
+      .tp-scroll-btn {{
+        position: fixed;
+        top: {_arrow_mid}px;
+        transform: translateY(-50%);
+        width: 36px; height: 36px;
+        border-radius: 50%;
+        border: 1px solid rgba(255,255,255,0.2);
+        background: rgba(40,40,40,0.8);
+        color: #fff;
+        font-size: 1rem;
+        cursor: pointer;
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0.1;
       }}
+      .tp-scroll-btn:hover {{ opacity: 0.5; background: rgba(70,70,70,0.95); }}
+    `;
+    doc.head.appendChild(style);
+  }}
 
-      function getScrollTarget() {{
-        var panel = doc.querySelector('.st-key-top_panel');
-        if (!panel) return null;
-        if (panel.scrollWidth > panel.clientWidth) return panel;
-        var children = panel.querySelectorAll('div');
-        for (var i = 0; i < children.length; i++) {{
-          if (children[i].scrollWidth > children[i].clientWidth) return children[i];
-        }}
-        return panel;
-      }}
+  function getScrollTarget() {{
+    var panel = doc.querySelector('.st-key-top_panel');
+    if (!panel) return null;
+    if (panel.scrollWidth > panel.clientWidth) return panel;
+    var children = panel.querySelectorAll('div');
+    for (var i = 0; i < children.length; i++) {{
+      if (children[i].scrollWidth > children[i].clientWidth) return children[i];
+    }}
+    return panel;
+  }}
 
-      var btnL = doc.createElement('button');
-      btnL.id = 'scroll-left-btn';
-      btnL.className = 'tp-scroll-btn';
-      btnL.style.left = '8px';
-      btnL.addEventListener('click', function() {{
-        var t = getScrollTarget();
-        if (t) t.scrollBy({{ left: -400, behavior: 'smooth' }});
-      }});
-      btnL.innerHTML = '&#9664;';
+  var btnL = doc.createElement('button');
+  btnL.id = 'scroll-left-btn';
+  btnL.className = 'tp-scroll-btn';
+  btnL.style.left = '8px';
+  btnL.addEventListener('click', function() {{
+    var t = getScrollTarget();
+    if (t) t.scrollBy({{ left: -400, behavior: 'smooth' }});
+  }});
+  btnL.innerHTML = '&#9664;';
 
-      var btnR = doc.createElement('button');
-      btnR.id = 'scroll-right-btn';
-      btnR.className = 'tp-scroll-btn';
-      btnR.style.right = '8px';
-      btnR.addEventListener('click', function() {{
-        var t = getScrollTarget();
-        if (t) t.scrollBy({{ left: 400, behavior: 'smooth' }});
-      }});
-      btnR.innerHTML = '&#9654;';
+  var btnR = doc.createElement('button');
+  btnR.id = 'scroll-right-btn';
+  btnR.className = 'tp-scroll-btn';
+  btnR.style.right = '8px';
+  btnR.addEventListener('click', function() {{
+    var t = getScrollTarget();
+    if (t) t.scrollBy({{ left: 400, behavior: 'smooth' }});
+  }});
+  btnR.innerHTML = '&#9654;';
 
-      doc.body.appendChild(btnL);
-      doc.body.appendChild(btnR);
-    }})();
-    </script>
-    """, height=0)
-else:
-    components.html("""
-    <script>
-    (function() {
-      var doc = window.parent.document;
-      var old1 = doc.getElementById('scroll-left-btn');
-      var old2 = doc.getElementById('scroll-right-btn');
-      if (old1) old1.remove();
-      if (old2) old2.remove();
-    })();
-    </script>
-    """, height=0)
+  doc.body.appendChild(btnL);
+  doc.body.appendChild(btnR);
+}})();
+</script>
+"""
 
 # ---------------------------------------------------------------------------
 # Data-fetching helpers (from FH_Check_0_Uthsara.ipynb)
@@ -439,6 +442,7 @@ symbol = st.session_state.symbol
 # No symbol yet → welcome screen
 # ---------------------------------------------------------------------------
 if not symbol:
+    components.html(_remove_scroll_btns_js, height=0)
     st.markdown(
         '<div style="display:flex;flex-direction:column;align-items:center;'
         'justify-content:center;height:70vh;opacity:0.45;">'
@@ -461,6 +465,7 @@ sym_type = detect_symbol_type(symbol)
 top_panel_header = st.container(key="top_panel_header")
 
 with top_panel_header:
+    st.markdown(f"**{symbol}**  —  {'Stock' if sym_type == 'stock' else 'ETF' if sym_type == 'etf' else 'Index'}")
     toggle_label = "Hide Charts" if st.session_state.show_graphs else "Show Charts"
     if st.button(toggle_label, key="toggle_graphs", type="secondary"):
         st.session_state.show_graphs = not st.session_state.show_graphs
@@ -495,8 +500,12 @@ with top_panel:
             cols = st.columns(len(charts))
             for col, fig in zip(cols, charts):
                 col.plotly_chart(fig, use_container_width=True, key=f"tc_{id(fig)}")
+            components.html(_create_scroll_btns_js, height=0)
         else:
             st.caption("No chart data available for this symbol.")
+            components.html(_remove_scroll_btns_js, height=0)
+    else:
+        components.html(_remove_scroll_btns_js, height=0)
 
 # ===================================================================
 # LAYER 2 — MIDDLE PANEL (fills remaining space, scrolls internally)
@@ -505,270 +514,259 @@ with top_panel:
 middle = st.container(key="mid_panel")
 
 with middle:
-    st.subheader(f"{symbol}  —  {'Stock' if sym_type == 'stock' else 'ETF' if sym_type == 'etf' else 'Index'}")
 
     # ------------------------------------------------------------------
     # INDEX
     # ------------------------------------------------------------------
     if sym_type == "index":
-        tab_constituents, tab_details = st.tabs(["Constituents", "Details"])
-
-        with tab_constituents:
-            try:
-                res = fetch_index_constituents(symbol)
-                constit = res.get("constituents", [])
-                breakdown = res.get("constituentsBreakdown", [])
-                st.metric("Total Constituents", len(constit))
-                if breakdown:
-                    df = pd.DataFrame(breakdown)
-                    display_cols = [c for c in ["symbol", "name", "weight", "isin", "cusip"] if c in df.columns]
-                    if display_cols:
-                        df = df[display_cols]
-                    if "weight" in df.columns:
-                        df = df.sort_values("weight", ascending=False)
-                        df["weight"] = df["weight"].apply(lambda x: f"{x:.4f}%")
-                    st.dataframe(df, use_container_width=True, height=350)
-                elif constit:
-                    st.write(", ".join(constit))
-            except Exception as e:
-                st.error(f"Could not load constituents: {e}")
-
-        with tab_details:
-            st.write(f"Index symbol: **{symbol}**")
-            try:
-                res = fetch_index_constituents(symbol)
-                st.json({"symbol": symbol, "totalConstituents": len(res.get("constituents", []))})
-            except Exception:
-                pass
+        try:
+            res = fetch_index_constituents(symbol)
+            constit = res.get("constituents", [])
+            breakdown = res.get("constituentsBreakdown", [])
+            st.markdown(f"**Total Constituents:** {len(constit)}")
+            if breakdown:
+                df = pd.DataFrame(breakdown)
+                display_cols = [c for c in ["symbol", "name", "weight", "isin", "cusip"] if c in df.columns]
+                if display_cols:
+                    df = df[display_cols]
+                if "weight" in df.columns:
+                    df = df.sort_values("weight", ascending=False)
+                    df["weight"] = df["weight"].apply(lambda x: f"{x:.4f}%")
+                st.dataframe(df, use_container_width=True, height=350)
+            elif constit:
+                st.markdown(", ".join(constit))
+        except Exception as e:
+            st.markdown(f"*Could not load constituents: {e}*")
 
     # ------------------------------------------------------------------
     # ETF
     # ------------------------------------------------------------------
     elif sym_type == "etf":
-        tab_profile, tab_holdings, tab_sector, tab_country, tab_earnings, tab_recs = st.tabs(
-            ["Profile", "Holdings", "Sector", "Country", "Earnings", "Analysts"]
-        )
+        try:
+            res = fetch_etf_profile(symbol)
+            profile = res.get("profile", {})
+            if isinstance(profile, list) and len(profile) > 0:
+                profile = profile[0]
+            if profile:
+                st.markdown("#### Profile")
+                st.markdown(
+                    f"**Name:** {profile.get('name', 'N/A')}  \n"
+                    f"**Asset Class:** {profile.get('assetClass', 'N/A')}  \n"
+                    f"**Expense Ratio:** {profile.get('expenseRatio', 'N/A')}%  \n"
+                    f"**AUM:** ${profile.get('aum', 0):,.0f}  \n"
+                    f"**NAV:** ${profile.get('nav', 0):,.2f}  \n"
+                    f"**Inception:** {profile.get('inceptionDate', 'N/A')}"
+                )
+                desc = profile.get("description", "")
+                if desc:
+                    st.markdown(desc)
+        except Exception:
+            pass
 
-        with tab_profile:
-            try:
-                res = fetch_etf_profile(symbol)
-                profile = res.get("profile", {})
-                if isinstance(profile, list) and len(profile) > 0:
-                    profile = profile[0]
-                if profile:
-                    c1, c2 = st.columns(2)
-                    c1.metric("Name", profile.get("name", "N/A"))
-                    c1.metric("Asset Class", profile.get("assetClass", "N/A"))
-                    c1.metric("Expense Ratio", f"{profile.get('expenseRatio', 'N/A')}%")
-                    c2.metric("AUM", f"${profile.get('aum', 0):,.0f}")
-                    c2.metric("NAV", f"${profile.get('nav', 0):,.2f}")
-                    c2.metric("Inception", profile.get("inceptionDate", "N/A"))
-                    st.write(profile.get("description", ""))
-                else:
-                    st.warning("No profile data.")
-            except Exception as e:
-                st.error(str(e))
+        st.markdown("---")
 
-        with tab_holdings:
-            try:
-                res = fetch_etf_holdings(symbol)
-                holdings = res.get("holdings", [])
-                if holdings:
-                    df = pd.DataFrame(holdings)
-                    if "percent" in df.columns:
-                        df = df.sort_values("percent", ascending=False).reset_index(drop=True)
-                    st.dataframe(df, use_container_width=True, height=350)
-                else:
-                    st.info("No holdings data.")
-            except Exception as e:
-                st.error(str(e))
+        try:
+            res = fetch_etf_holdings(symbol)
+            holdings = res.get("holdings", [])
+            if holdings:
+                st.markdown("#### Holdings")
+                df = pd.DataFrame(holdings)
+                if "percent" in df.columns:
+                    df = df.sort_values("percent", ascending=False).reset_index(drop=True)
+                st.dataframe(df, use_container_width=True, height=350)
+        except Exception:
+            pass
 
-        with tab_sector:
-            try:
-                res = fetch_etf_sector_exposure(symbol)
-                sectors = res.get("sectorExposure", [])
-                if sectors:
-                    st.dataframe(
-                        pd.DataFrame(sectors).sort_values("exposure", ascending=False).reset_index(drop=True),
-                        use_container_width=True,
-                    )
-                else:
-                    st.info("No sector data.")
-            except Exception as e:
-                st.error(str(e))
+        st.markdown("---")
 
-        with tab_country:
-            try:
-                res = fetch_etf_country_exposure(symbol)
-                countries = res.get("countryExposure", [])
-                if countries:
-                    st.dataframe(
-                        pd.DataFrame(countries).sort_values("exposure", ascending=False).reset_index(drop=True),
-                        use_container_width=True,
-                    )
-                else:
-                    st.info("No country data.")
-            except Exception as e:
-                st.error(str(e))
+        try:
+            res = fetch_etf_sector_exposure(symbol)
+            sectors = res.get("sectorExposure", [])
+            if sectors:
+                st.markdown("#### Sector Exposure")
+                st.dataframe(
+                    pd.DataFrame(sectors).sort_values("exposure", ascending=False).reset_index(drop=True),
+                    use_container_width=True,
+                )
+        except Exception:
+            pass
 
-        with tab_earnings:
-            try:
-                data = fetch_company_earnings(symbol, limit=20)
-                if data:
-                    st.dataframe(
-                        pd.DataFrame(data).sort_values("period", ascending=False).reset_index(drop=True),
-                        use_container_width=True, height=350,
-                    )
-                else:
-                    st.info("No earnings data.")
-            except Exception as e:
-                st.error(str(e))
+        st.markdown("---")
 
-        with tab_recs:
-            try:
-                data = fetch_recommendation_trends(symbol)
-                if data:
-                    st.dataframe(
-                        pd.DataFrame(data).sort_values("period", ascending=False).reset_index(drop=True),
-                        use_container_width=True,
-                    )
-                else:
-                    st.info("No recommendation data.")
-            except Exception as e:
-                st.error(str(e))
+        try:
+            res = fetch_etf_country_exposure(symbol)
+            countries = res.get("countryExposure", [])
+            if countries:
+                st.markdown("#### Country Exposure")
+                st.dataframe(
+                    pd.DataFrame(countries).sort_values("exposure", ascending=False).reset_index(drop=True),
+                    use_container_width=True,
+                )
+        except Exception:
+            pass
+
+        st.markdown("---")
+
+        try:
+            data = fetch_company_earnings(symbol, limit=20)
+            if data:
+                st.markdown("#### Earnings")
+                st.dataframe(
+                    pd.DataFrame(data).sort_values("period", ascending=False).reset_index(drop=True),
+                    use_container_width=True, height=350,
+                )
+        except Exception:
+            pass
+
+        st.markdown("---")
+
+        try:
+            data = fetch_recommendation_trends(symbol)
+            if data:
+                st.markdown("#### Analyst Recommendations")
+                st.dataframe(
+                    pd.DataFrame(data).sort_values("period", ascending=False).reset_index(drop=True),
+                    use_container_width=True,
+                )
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # STOCK (default)
     # ------------------------------------------------------------------
     else:
-        tab_overview, tab_earnings, tab_estimates, tab_recs, tab_upgrades, tab_divs, tab_splits = st.tabs(
-            ["Overview", "Earnings", "Estimates", "Analysts", "Upgrades", "Dividends", "Splits"]
-        )
+        try:
+            res = fetch_basic_financials(symbol)
+            metric = res.get("metric", {})
+            if metric:
+                st.markdown("#### Key Financials")
+                st.markdown(
+                    f"**52-Wk High:** ${metric.get('52WeekHigh', 'N/A')} · "
+                    f"**52-Wk Low:** ${metric.get('52WeekLow', 'N/A')} · "
+                    f"**Beta:** {metric.get('beta', 'N/A')} · "
+                    f"**P/E (TTM):** {metric.get('peTTM', 'N/A')}"
+                )
+                st.markdown(
+                    f"**P/B (Annual):** {metric.get('pbAnnual', 'N/A')} · "
+                    f"**Div Yield TTM:** {metric.get('currentDividendYieldTTM', 'N/A')}% · "
+                    f"**ROE TTM:** {metric.get('roeTTM', 'N/A')}% · "
+                    f"**EPS TTM:** ${metric.get('epsTTM', 'N/A')}"
+                )
+                display_keys = [
+                    "marketCapitalization", "revenuePerShareTTM", "netIncomePerShareTTM",
+                    "operatingMarginTTM", "grossMarginTTM", "debtEquityTTM",
+                    "currentRatioQuarterly", "quickRatioQuarterly",
+                    "10DayAverageTradingVolume", "3MonthAverageTradingVolume",
+                ]
+                rows = [{k: metric.get(k, "N/A") for k in display_keys}]
+                st.dataframe(pd.DataFrame(rows).T.rename(columns={0: "Value"}), use_container_width=True)
+        except Exception:
+            pass
 
-        with tab_overview:
-            try:
-                res = fetch_basic_financials(symbol)
-                metric = res.get("metric", {})
-                if metric:
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("52-Wk High", f"${metric.get('52WeekHigh', 'N/A')}")
-                    c2.metric("52-Wk Low", f"${metric.get('52WeekLow', 'N/A')}")
-                    c3.metric("Beta", f"{metric.get('beta', 'N/A')}")
-                    c4.metric("P/E (TTM)", f"{metric.get('peTTM', 'N/A')}")
+        st.markdown("---")
 
-                    c5, c6, c7, c8 = st.columns(4)
-                    c5.metric("P/B (Annual)", f"{metric.get('pbAnnual', 'N/A')}")
-                    c6.metric("Div Yield TTM", f"{metric.get('currentDividendYieldTTM', 'N/A')}%")
-                    c7.metric("ROE TTM", f"{metric.get('roeTTM', 'N/A')}%")
-                    c8.metric("EPS TTM", f"${metric.get('epsTTM', 'N/A')}")
+        try:
+            pt = fetch_price_target(symbol)
+            if pt and "targetMean" in pt:
+                st.markdown("#### Price Target Consensus")
+                st.markdown(
+                    f"**Low:** ${pt.get('targetLow', 'N/A')} · "
+                    f"**Mean:** ${pt.get('targetMean', 'N/A'):,.2f} · "
+                    f"**Median:** ${pt.get('targetMedian', 'N/A')} · "
+                    f"**High:** ${pt.get('targetHigh', 'N/A')}"
+                )
+        except Exception:
+            pass
 
-                    display_keys = [
-                        "marketCapitalization", "revenuePerShareTTM", "netIncomePerShareTTM",
-                        "operatingMarginTTM", "grossMarginTTM", "debtEquityTTM",
-                        "currentRatioQuarterly", "quickRatioQuarterly",
-                        "10DayAverageTradingVolume", "3MonthAverageTradingVolume",
-                    ]
-                    rows = [{k: metric.get(k, "N/A") for k in display_keys}]
-                    st.dataframe(pd.DataFrame(rows).T.rename(columns={0: "Value"}), use_container_width=True)
-                else:
-                    st.warning("No financial data.")
-            except Exception as e:
-                st.error(str(e))
+        st.markdown("---")
 
-            try:
-                pt = fetch_price_target(symbol)
-                if pt and "targetMean" in pt:
-                    st.markdown("**Price Target Consensus**")
-                    pc1, pc2, pc3, pc4 = st.columns(4)
-                    pc1.metric("Low", f"${pt.get('targetLow', 'N/A')}")
-                    pc2.metric("Mean", f"${pt.get('targetMean', 'N/A'):,.2f}")
-                    pc3.metric("Median", f"${pt.get('targetMedian', 'N/A')}")
-                    pc4.metric("High", f"${pt.get('targetHigh', 'N/A')}")
-            except Exception:
-                pass
+        try:
+            data = fetch_company_earnings(symbol, limit=40)
+            if data:
+                st.markdown("#### Earnings History")
+                st.dataframe(
+                    pd.DataFrame(data).sort_values("period", ascending=False).reset_index(drop=True),
+                    use_container_width=True, height=350,
+                )
+        except Exception:
+            pass
 
-        with tab_earnings:
-            try:
-                data = fetch_company_earnings(symbol, limit=40)
-                if data:
-                    st.dataframe(
-                        pd.DataFrame(data).sort_values("period", ascending=False).reset_index(drop=True),
-                        use_container_width=True, height=350,
-                    )
-                else:
-                    st.info("No earnings data.")
-            except Exception as e:
-                st.error(str(e))
+        st.markdown("---")
 
-        with tab_estimates:
-            est_sub = st.radio("Type", ["Revenue", "EPS"], horizontal=True, key="est_type")
-            freq = st.radio("Frequency", ["quarterly", "annual"], horizontal=True, key="est_freq")
-            try:
-                if est_sub == "Revenue":
-                    res = fetch_revenue_estimates(symbol, freq=freq)
-                else:
-                    res = fetch_eps_estimates(symbol, freq=freq)
-                est_rows = res.get("data", []) if res else []
-                if est_rows:
-                    st.dataframe(
-                        pd.DataFrame(est_rows).sort_values("period", ascending=False).reset_index(drop=True),
-                        use_container_width=True, height=350,
-                    )
-                else:
-                    st.info("No estimate data.")
-            except Exception as e:
-                st.error(str(e))
+        try:
+            rev_res = fetch_revenue_estimates(symbol, freq="quarterly")
+            rev_data = rev_res.get("data", []) if rev_res else []
+            if rev_data:
+                st.markdown("#### Revenue Estimates (Quarterly)")
+                st.dataframe(
+                    pd.DataFrame(rev_data).sort_values("period", ascending=False).reset_index(drop=True),
+                    use_container_width=True, height=350,
+                )
+        except Exception:
+            pass
 
-        with tab_recs:
-            try:
-                data = fetch_recommendation_trends(symbol)
-                if data:
-                    st.dataframe(
-                        pd.DataFrame(data).sort_values("period", ascending=False).reset_index(drop=True),
-                        use_container_width=True,
-                    )
-                else:
-                    st.info("No recommendation data.")
-            except Exception as e:
-                st.error(str(e))
+        try:
+            eps_res = fetch_eps_estimates(symbol, freq="quarterly")
+            eps_data = eps_res.get("data", []) if eps_res else []
+            if eps_data:
+                st.markdown("#### EPS Estimates (Quarterly)")
+                st.dataframe(
+                    pd.DataFrame(eps_data).sort_values("period", ascending=False).reset_index(drop=True),
+                    use_container_width=True, height=350,
+                )
+        except Exception:
+            pass
 
-        with tab_upgrades:
-            try:
-                data = fetch_upgrade_downgrade(symbol)
-                if data:
-                    df = pd.DataFrame(data)
-                    if "gradeTime" in df.columns:
-                        df["gradeTime"] = pd.to_datetime(df["gradeTime"], unit="s")
-                    df = df.sort_values("gradeTime", ascending=False).reset_index(drop=True)
-                    st.dataframe(df, use_container_width=True, height=350)
-                else:
-                    st.info("No upgrade/downgrade data.")
-            except Exception as e:
-                st.error(str(e))
+        st.markdown("---")
 
-        with tab_divs:
-            try:
-                res = fetch_basic_dividends(symbol)
-                divs = res.get("data", []) if res else []
-                if divs:
-                    df = pd.DataFrame(divs)
-                    if "exDate" in df.columns:
-                        df = df.sort_values("exDate", ascending=False).reset_index(drop=True)
-                    st.dataframe(df, use_container_width=True, height=350)
-                else:
-                    st.info("No dividend data.")
-            except Exception as e:
-                st.error(str(e))
+        try:
+            data = fetch_recommendation_trends(symbol)
+            if data:
+                st.markdown("#### Analyst Recommendations")
+                st.dataframe(
+                    pd.DataFrame(data).sort_values("period", ascending=False).reset_index(drop=True),
+                    use_container_width=True,
+                )
+        except Exception:
+            pass
 
-        with tab_splits:
-            try:
-                splits = fetch_stock_splits(symbol)
-                if splits:
-                    df = pd.DataFrame(splits)
-                    if "date" in df.columns:
-                        df = df.sort_values("date", ascending=False).reset_index(drop=True)
-                    st.dataframe(df, use_container_width=True)
-                else:
-                    st.info("No split data.")
-            except Exception as e:
-                st.error(str(e))
+        st.markdown("---")
+
+        try:
+            data = fetch_upgrade_downgrade(symbol)
+            if data:
+                st.markdown("#### Upgrades & Downgrades")
+                df = pd.DataFrame(data)
+                if "gradeTime" in df.columns:
+                    df["gradeTime"] = pd.to_datetime(df["gradeTime"], unit="s")
+                df = df.sort_values("gradeTime", ascending=False).reset_index(drop=True)
+                st.dataframe(df, use_container_width=True, height=350)
+        except Exception:
+            pass
+
+        st.markdown("---")
+
+        try:
+            res = fetch_basic_dividends(symbol)
+            divs = res.get("data", []) if res else []
+            if divs:
+                st.markdown("#### Dividends")
+                df = pd.DataFrame(divs)
+                if "exDate" in df.columns:
+                    df = df.sort_values("exDate", ascending=False).reset_index(drop=True)
+                st.dataframe(df, use_container_width=True, height=350)
+        except Exception:
+            pass
+
+        st.markdown("---")
+
+        try:
+            splits = fetch_stock_splits(symbol)
+            if splits:
+                st.markdown("#### Stock Splits")
+                df = pd.DataFrame(splits)
+                if "date" in df.columns:
+                    df = df.sort_values("date", ascending=False).reset_index(drop=True)
+                st.dataframe(df, use_container_width=True)
+        except Exception:
+            pass

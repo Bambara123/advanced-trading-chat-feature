@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import streamlit.components.v1 as components
 import finnhub
@@ -9,7 +10,7 @@ from datetime import datetime, timedelta
 # ---------------------------------------------------------------------------
 # Finnhub client
 # ---------------------------------------------------------------------------
-FINNHUB_API_KEY = "c0p81vn48v6rvej4f590"
+FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 
 @st.cache_resource
 def get_client():
